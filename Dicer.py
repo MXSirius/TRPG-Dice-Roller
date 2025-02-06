@@ -11,55 +11,51 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-"""
-★ TRPG 跑团掷骰模拟器 ★
-
-1. 基础模块
-    输入：掷骰表达式，如 "3d6+2"，表示投掷 3 个 6 面骰并加上 2。
-    需求值检定：如 "10/3d6+2"，表示投掷 3 个 6 面骰并加上 2，判断是否小于等于 10。
-    检定结果输出：根据骰点结果比较需求值的大小，输出是否成功。成功规则请看下述。
-
-2. 快速roll点
-    ".r"：立即投掷一个百面骰，输出结果。
-    ".r n"：立即投掷一个 n 面骰，输出结果。
-    注：快捷指令不进行检定，只输出骰点结果。
-
-3. 快速重复检定
-    ".d"：连续进行两次相同的检定，分别按行输出两次的检定结果。
-    ".t"：连续进行三次相同的检定，分别按行输出三次的检定结果。
-    ".m -n"：连续进行 n 次相同的检定，分别按行输出 n 次的检定结果。
-
-4. 成功判断
-    常规难度：投出的点数只需要小于等于需求值即通过检定。默认即为此情况。
-    困难难度：投出的点数需要小于等于需求值的一半（向下取整）才能检定通过。对应指令"-h"。
-    极难难度：投出的点数需要小于等于需求值的1/5（向下取整）才能检定通过。对应指令"-e"。
-    大成功：投掷百面骰时，骰出1即为大成功。输出"大成功！"。
-    大失败：投掷百面骰时，骰出96-100即为大失败。输出"大失败！"。
-    孤注一掷：在原有难度判断的基础上，只要失败了就一律视为大失败。对应指令"-g"。
-
-5. 示例输入输出
-    "3d6+2" -> "3d6+2: 4+5+6+2=17"
-    ".d 1d6" -> "第 1 次 -> 1d6: 3=3"
-                "第 2 次 -> 1d6: 6=6"
-    "20/1d100+2" -> "1d100+2: 15+2=17, 17<=20, 检定通过！"
-    "40/1d100+2 -h" -> "1d100+2: 15+2=17, 17<=20, 困难检定通过！"
-    "50/1d100+2 -e" -> "1d100+2: 15+2=17, 17>10, 极难检定失败！"
-    "20/1d100 -g" -> "1d100: 50=50, 50>20, 孤注一掷失败，视为大失败！"
-    "100/1d100 -e -g" -> "1d100: 50=50, 50>20, 极难孤注一掷失败，视为大失败！"
-    ".r" -> "1d100: 50=50"
-    ".r 20" -> "1d20: 10=10"
-    ".m -2 20/1d100+2 -h" -> "第 1 次 -> 1d100+2: 15+2=17, 17<=20, 困难检定通过！"
-                             "第 2 次 -> 1d100+2: 75+2=77, 77>20, 困难检定失败！"
-"""
-
 import random
 import re
 
 
 class DiceRoller:
+    """
+    骰点工具类，用于模拟掷骰子游戏中的骰点行为。该类支持多种掷骰表达式，并能够根据不同的难度等级和需求值进行检定。
 
-    # 根据传入的表达式投掷骰子，返回骰点结果和骰点详情
+    主要功能包括：
+    - 解析并执行标准的掷骰表达式（如 "2d6+3"）。
+    - 根据不同的难度等级（普通、困难、极难）和需求值判断掷骰结果。
+    - 支持快速掷骰、重复掷骰等多种掷骰方式。
+    - 处理1d100的特殊规则，包括大成功和大失败的判定。
+
+    主要方法：
+    - `roll_dice`: 根据传入的骰子表达式投掷骰子，返回骰点结果和骰点详情。
+    - `check_success`: 根据不同的难度等级判定是否成功。
+    - `evaluate_expression`: 分析掷骰表达式并做出相应动作，输出投点结果。
+    - `quick_roll`: 快速掷骰子并返回结果。
+    - `repeat_roll`: 判别重复检定指令并执行相应的掷骰操作。
+    - `_execute_rolls`: 根据指定的次数和掷骰表达式，执行重复掷骰操作并返回结果。
+
+    注意事项：
+    - 掷骰表达式格式为 "XdY+Z"，其中 X 是骰子数量，Y 是骰子面数，Z 是修正值（可选）。
+    - 难度等级选项包括：普通（默认）、困难（-h）、极难（-e）。
+    - 孤注一掷选项为 -g，失败时一律视为大失败。
+    - 需求值检定格式为 "target/dice_expression"，其中 target 是需求值，dice_expression 是掷骰表达式。
+    - 重复掷骰指令格式为 ".m -n expression" 或 ".d/.t expression"，其中 n 是重复次数，expression 是掷骰表达式。
+    """
+
     def roll_dice(self, dice_expression):
+        """
+        根据传入的骰子表达式投掷骰子，返回骰点结果和骰点详情
+
+        Args:
+            dice_expression (str): 符合骰子表达式格式的字符串，例如 "2d6+3"
+
+        Raises:
+            ValueError: 如果传入的骰子表达式格式不正确或无法解析
+
+        Returns:
+            tuple[int, str]: 返回一个元组，第一个元素是骰点结果（整数），第二个元素是骰点详情（字符串）
+        """
+
+        # 输入验证
         match = re.match(r'(\d*)d(\d+)([+-]\d+)?', dice_expression)
         if not match:
             raise ValueError("无效的表达式！")
@@ -82,13 +78,23 @@ class DiceRoller:
             roll_details += f'{match.group(3)}'
         return total, roll_details
 
-    # 根据不同的难度等级判定是否成功
-    def check_success(self, target, total, difficulty):
+    def check_success(self, target, total, lvl):
+        """
+        根据不同的难度等级判定是否成功
+
+        Args:
+            target (int): 需求值，即目标点数。
+            total (int): 实际投出的点数总和。
+            lvl (str): 难度等级，可选值为 'h'（困难）、'e'（极难）或其他字符串表示默认难度。
+
+        Returns:
+            tuple: 包含两个元素的元组，第一个元素是布尔值，表示是否成功；第二个元素是通过检定的阈值。
+        """
         # 困难难度：投出的点数需要小于等于需求值的一半（向下取整）才能检定通过。
-        if difficulty == 'h':
+        if lvl == 'h':
             threshold = target // 2
         # 极难难度：投出的点数需要小于等于需求值的1/5（向下取整）才能检定通过。
-        elif difficulty == 'e':
+        elif lvl == 'e':
             threshold = target // 5
         # 默认难度：投出的点数只需要小于等于需求值即通过检定。
         else:
@@ -97,22 +103,37 @@ class DiceRoller:
         success = total <= threshold
         return success, threshold
 
-    # 分析掷骰表达式并做出相应动作，输出投点结果
     def evaluate_expression(self, expression):
+        """
+        分析掷骰表达式并做出相应动作，输出投点结果
+
+        Args:
+            expression (str): 掷骰表达式，例如 "1d20+5 -g" 或 "10/1d20+5 -h"。
+                支持的选项有：
+                - "-g"：表示孤注一掷
+                - "-h"：表示困难难度
+                - "-e"：表示极难难度
+                - "/"：用于分隔需求值和掷骰表达式，如 "10/1d20+5"
+
+        Returns:
+            str: 投点结果，包括投点详情、总点数以及根据需求值和难度等级判断的结果。
+                如果掷的是1d100，还会包含大成功或大失败的信息。
+                如果表达式解析或计算过程中出现错误，返回错误信息。
+        """
         try:
-            # 孤注一掷
-            gamble = '-g' in expression
-            if gamble:
-                expression = expression.replace(' -g', '')
+            # 初始化结果变量
+            roll_result = ""
+
+            # 处理选项
+            options = {'-g': False, '-h': False, '-e': False}
+            for option in options:
+                if option in expression:
+                    options[option] = True
+                    expression = expression.replace(option, '').strip()
 
             # 难度分级
-            difficulty = 'n'
-            if '-h' in expression:
-                difficulty = 'h'
-                expression = expression.replace(' -h', '')
-            elif '-e' in expression:
-                difficulty = 'e'
-                expression = expression.replace(' -e', '')
+            lvl_map = {'n': '', 'h': '困难', 'e': '极难'}
+            lvl = 'h' if options['-h'] else 'e' if options['-e'] else 'n'
 
             # 需求值检定
             if '/' in expression:
@@ -127,36 +148,41 @@ class DiceRoller:
             if '1d100' in dice_expression:
                 if total == 1:
                     return f"{dice_expression.strip()}: {roll_details}={total}, 大成功！"
-                elif total >= 96:
+                if total >= 96:
                     return f"{dice_expression.strip()}: {roll_details}={total}, 大失败！"
 
             # 根据骰点结果和需求值进行判断
             if target is not None:
-                success, threshold = self.check_success(
-                    target, total, difficulty)
-                difficulty_str = ""
-                if difficulty == 'h':
-                    difficulty_str = "困难"
-                elif difficulty == 'e':
-                    difficulty_str = "极难"
-
+                success, threshold = self.check_success(target, total, lvl)
                 if success:
-                    result = f"{total}<={threshold}, {difficulty_str}检定通过！"
+                    roll_result = f"{total}<={threshold}, {lvl_map[lvl]}检定通过！"
                 else:
-                    if gamble:
-                        result = f"{total}>{threshold}, {difficulty_str}孤注一掷失败，视为大失败！"
+                    if options['-g']:
+                        roll_result = f"{total}>{threshold}, {lvl_map[lvl]}孤注一掷失败，视为大失败！"
                     else:
-                        result = f"{total}>{threshold}, {difficulty_str}检定失败！"
-
+                        roll_result = f"{total}>{threshold}, {lvl_map[lvl]}检定失败！"
             else:
-                result = f"{total}"
+                roll_result = f"{total}"
 
-            return f"{dice_expression.strip()}: {roll_details}={total}, {result}"
+            return f"{dice_expression.strip()}: {roll_details}={total}, {roll_result}"
+
         except Exception as e:
             return f"错误：{str(e)}"
 
-    # 快速 roll 点
     def quick_roll(self, command):
+        """
+        快速掷骰子并返回结果。
+
+        Args:
+            command (str): 用户输入的命令字符串，格式为 ".r [骰子面数]"。例如 ".r 20" 表示掷一个20面骰子，默认为100面骰子。
+
+        Raises:
+            ValueError: 当输入的命令格式无效时抛出此异常。
+
+        Returns:
+            str: 掷骰子的结果字符串，格式为 "1dX: Y=Z"，其中 X 是骰子面数，Y 是详细的掷骰子过程，Z 是总和。
+                如果发生错误，则返回错误信息字符串，格式为 "错误：{错误信息}"。
+        """
         try:
             match = re.match(r'\.r\s*(\d+)?', command)
             if match:
@@ -164,12 +190,30 @@ class DiceRoller:
                 dice_expression = f"1d{dice_type}"
                 total, roll_details = self.roll_dice(dice_expression)
                 return f"{dice_expression}: {roll_details}={total}"
-            else:
-                raise ValueError("无效的表达式！")
+
+            raise ValueError("无效的表达式！")
+
         except Exception as e:
             return f"错误：{str(e)}"
 
     def repeat_roll(self, command, expression=None):
+        """
+        判别重复检定指令并执行相应的掷骰操作。
+
+        Args:
+            command (str): 用户输入的命令字符串。支持以下格式：
+                - ".m -n expression"：表示进行 n 次重复掷骰，expression 为掷骰表达式。
+                - ".d expression"：表示进行 2 次重复掷骰（难度检定），expression 为掷骰表达式。
+                - ".t expression"：表示进行 3 次重复掷骰（团队检定），expression 为掷骰表达式。
+            expression (str, optional): 如果在命令中未提供掷骰表达式，则使用此参数作为默认表达式。Defaults to None.
+
+        Raises:
+            ValueError: 当输入的命令格式无效时抛出此异常。
+
+        Returns:
+            str: 执行重复掷骰的结果字符串。如果发生错误，则返回错误信息字符串，格式为 "错误：{错误信息}"。
+        """
+
         try:
             # m型模式：.m -n expression
             m_match = re.match(r'\.m\s+-(\d+)\s+(.+)', command)
@@ -192,11 +236,20 @@ class DiceRoller:
             return f"错误：{str(e)}"
 
     def _execute_rolls(self, times, expression):
-        """执行指定次数的掷骰"""
+        """
+        根据指定的次数和掷骰表达式，执行重复掷骰操作并返回结果。
+
+        Args:
+            times (int): 重复掷骰的次数。
+            expression (str): 掷骰表达式，例如 "2d6+3"。
+
+        Returns:
+            str: 多次掷骰的结果字符串，每行显示一次掷骰的结果，格式为 "第 X 次 -> 结果"。
+        """
         results = []
         for i in range(times):
-            result = self.evaluate_expression(expression)
-            results.append(f"第 {i+1} 次 -> {result}")
+            roll_result = self.evaluate_expression(expression)
+            results.append(f"第 {i+1} 次 -> {roll_result}")
         return "\n".join(results)
 
 
